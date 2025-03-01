@@ -8,7 +8,33 @@ x-logging: &default-logging
     compress: "true"
 
 services:
-  db:
+  nginx-proxy:
+    image: nginx:latest
+    container_name: nginx-proxy
+    ports:
+      - "80:80"    # Для начальной проверки Certbot
+      - "443:443"  # Для HTTPS
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/conf.d/nginx.conf  # Конфигурация Nginx
+      - ./certbot/www:/var/www/certbot/:ro
+      - ./certbot/conf/:/etc/nginx/ssl/:ro
+    networks:
+      - windmill
+    depends_on:
+      - windmill_server
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    volumes:
+      - ./certbot/www/:/var/www/certbot/:rw
+      - ./certbot/conf/:/etc/letsencrypt/:rw
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    depends_on:
+      - nginx-proxy
+    networks:
+      - windmill
+  postgres:
     deploy:
       # To use an external database, set replicas to 0 and set DATABASE_URL to the external database url in the .env file
       replicas: 1
@@ -20,16 +46,18 @@ services:
     expose:
       - 5432
     ports:
-      - 5432:5432
+      - ${PG_PORT}:5432
     environment:
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: windmill
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
     logging: *default-logging
+    networks:
+      - windmill
 
   windmill_server:
     image: ${WM_IMAGE}
@@ -44,12 +72,13 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - MODE=server
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     volumes:
       - worker_logs:/tmp/windmill/logs
     logging: *default-logging
-
+    networks:
+      - windmill
   windmill_worker:
     image: ${WM_IMAGE}
     pull_policy: always
@@ -66,7 +95,7 @@ services:
       - MODE=worker
       - WORKER_GROUP=default
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     # to mount the worker folder to debug, KEEP_JOB_DIR=true and mount /tmp/windmill
     volumes:
@@ -75,7 +104,8 @@ services:
       - worker_dependency_cache:/tmp/windmill/cache
       - worker_logs:/tmp/windmill/logs
     logging: *default-logging
-
+    networks:
+      - windmill
   ## This worker is specialized for "native" jobs. Native jobs run in-process and thus are much more lightweight than other jobs
   windmill_worker_native:
     # Use ghcr.io/windmill-labs/windmill-ee:main for the ee
@@ -96,11 +126,13 @@ services:
       - NUM_WORKERS=8
       - SLEEP_QUEUE=200
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     volumes:
       - worker_logs:/tmp/windmill/logs
     logging: *default-logging
+    networks:
+      - windmill
   # This worker is specialized for reports or scraping jobs. It is assigned the "reports" worker group which has an init script that installs chromium and can be targeted by using the "chromium" worker tag.
   # windmill_worker_reports:
   #   image: ${WM_IMAGE}
@@ -141,12 +173,14 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - MODE=indexer
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     volumes:
       - windmill_index:/tmp/windmill/search
       - worker_logs:/tmp/windmill/logs
     logging: *default-logging
+    networks:
+      - windmill
 
   lsp:
     image: ghcr.io/windmill-labs/windmill-lsp:latest
@@ -157,6 +191,8 @@ services:
     volumes:
       - lsp_cache:/pyls/.cache
     logging: *default-logging
+    networks:
+      - windmill
 
   multiplayer:
     image: ghcr.io/windmill-labs/windmill-multiplayer:latest
@@ -185,6 +221,8 @@ services:
       # - BASE_URL=":443" # uncomment and comment line above to enable HTTPS via custom certificate and key files
       # - BASE_URL=mydomain.com # Uncomment and comment line above to enable HTTPS handling by Caddy
     logging: *default-logging
+    networks:
+      - windmill
 
 volumes:
   db_data: null
@@ -193,3 +231,6 @@ volumes:
   windmill_index: null
   lsp_cache: null
   caddy_data: null
+
+networks:
+  windmill:
