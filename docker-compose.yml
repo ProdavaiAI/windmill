@@ -39,6 +39,7 @@ services:
       # To use an external database, set replicas to 0 and set DATABASE_URL to the external database url in the .env file
       replicas: 1
     image: postgres:16
+    container_name: postgres
     shm_size: 1g
     restart: unless-stopped
     volumes:
@@ -61,6 +62,7 @@ services:
 
   windmill_server:
     image: ${WM_IMAGE}
+    container_name: windmill_server
     pull_policy: always
     deploy:
       replicas: 1
@@ -109,6 +111,7 @@ services:
   ## This worker is specialized for "native" jobs. Native jobs run in-process and thus are much more lightweight than other jobs
   windmill_worker_native:
     # Use ghcr.io/windmill-labs/windmill-ee:main for the ee
+    container_name: windmill_worker_native
     image: ${WM_IMAGE}
     pull_policy: always
     deploy:
@@ -161,6 +164,7 @@ services:
 
   # The indexer powers full-text job and log search, an EE feature.
   windmill_indexer:
+    container_name: windmill_indexer
     image: ${WM_IMAGE}
     pull_policy: always
     deploy:
