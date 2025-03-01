@@ -8,32 +8,32 @@ x-logging: &default-logging
     compress: "true"
 
 services:
-  nginx-proxy:
-    image: nginx:latest
-    container_name: nginx-proxy
-    ports:
-      - "80:80"    # Для начальной проверки Certbot
-      - "443:443"  # Для HTTPS
-    volumes:
-      - ./config/nginx.conf:/etc/nginx/conf.d/nginx.conf  # Конфигурация Nginx
-      - ./certbot/www:/var/www/certbot/:ro
-      - ./certbot/conf/:/etc/nginx/ssl/:ro
-    networks:
-      - windmill
-    depends_on:
-      - windmill_server
+  # nginx-proxy:
+  #   image: nginx:latest
+  #   container_name: nginx-proxy
+  #   ports:
+  #     - "80:80"    # Для начальной проверки Certbot
+  #     - "443:443"  # Для HTTPS
+  #   volumes:
+  #     - ./config/nginx.conf:/etc/nginx/conf.d/nginx.conf  # Конфигурация Nginx
+  #     - ./certbot/www:/var/www/certbot/:ro
+  #     - ./certbot/conf/:/etc/nginx/ssl/:ro
+  #   networks:
+  #     - windmill
+  #   depends_on:
+  #     - windmill_server
 
-  certbot:
-    image: certbot/certbot:latest
-    container_name: certbot
-    volumes:
-      - ./certbot/www/:/var/www/certbot/:rw
-      - ./certbot/conf/:/etc/letsencrypt/:rw
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-    depends_on:
-      - nginx-proxy
-    networks:
-      - windmill
+  # certbot:
+  #   image: certbot/certbot:latest
+  #   container_name: certbot
+  #   volumes:
+  #     - ./certbot/www/:/var/www/certbot/:rw
+  #     - ./certbot/conf/:/etc/letsencrypt/:rw
+  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  #   depends_on:
+  #     - nginx-proxy
+  #   networks:
+  #     - windmill
   postgres:
     deploy:
       # To use an external database, set replicas to 0 and set DATABASE_URL to the external database url in the .env file
